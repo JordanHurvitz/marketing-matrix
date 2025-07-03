@@ -27,8 +27,9 @@
         ::-webkit-scrollbar-track { background: #f1f1f1; }
         ::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 10px; }
         ::-webkit-scrollbar-thumb:hover { background: #9ca3af; }
-        [contenteditable]:focus { outline: 2px solid #4f46e5; background-color: #eef2ff; }
+        [contenteditable="true"]:focus { outline: 2px solid #4f46e5; background-color: #eef2ff; }
         .table-cell-editable { padding: 8px 12px; }
+        .table-locked .table-cell-editable { background-color: #f9fafb; cursor: not-allowed; }
         .ref-highlight {
             animation: highlight 2s ease-out;
         }
@@ -125,7 +126,10 @@
                             <h2 class="text-2xl font-bold text-gray-900">Raw Data Editor</h2>
                             <p class="mt-1 text-gray-600">View, edit, and export the dataset. Changes made here will update the Strategy Explorer. Use the sidebar to filter the data.</p>
                         </div>
-                        <div>
+                        <div class="flex items-center space-x-3">
+                            <button id="lock-unlock-btn" class="w-full sm:w-auto inline-flex items-center justify-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                                <!-- Icon and text will be set by JS -->
+                            </button>
                             <button id="download-csv" class="w-full sm:w-auto inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
                                 <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
                                 Download as CSV
@@ -456,6 +460,7 @@
             const chartSection = document.getElementById('chart-section');
             const dataTableContainer = document.getElementById('data-table-container');
             const downloadCsvButton = document.getElementById('download-csv');
+            const lockUnlockBtn = document.getElementById('lock-unlock-btn');
             const referencesList = document.getElementById('references-list');
 
             const pages = document.querySelectorAll('.page-content');
@@ -464,6 +469,7 @@
 
             let recommendationsChart = null;
             let currentFilteredData = [];
+            let isTableLocked = true;
 
             const sizes = ['All', 'Small', 'Medium', 'Large'];
             
@@ -598,6 +604,7 @@
 
                 const table = document.createElement('table');
                 table.className = 'min-w-full divide-y divide-gray-200';
+                table.id = 'main-data-table';
                 
                 const thead = document.createElement('thead');
                 thead.className = 'bg-gray-50';
@@ -618,9 +625,9 @@
                     const tr = document.createElement('tr');
                     tr.dataset.index = item.originalIndex;
                     tr.innerHTML = `
-                        <td class="table-cell-editable text-sm text-gray-700" contenteditable="true" data-key="challenge">${item.challenge}</td>
-                        <td class="table-cell-editable text-sm text-gray-700" contenteditable="true" data-key="recommendation">${item.recommendation}</td>
-                        <td class="table-cell-editable text-sm text-gray-700" contenteditable="true" data-key="rationale">${item.rationale}</td>
+                        <td class="table-cell-editable" data-key="challenge">${item.challenge}</td>
+                        <td class="table-cell-editable" data-key="recommendation">${item.recommendation}</td>
+                        <td class="table-cell-editable" data-key="rationale">${item.rationale}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${item.identifier}</td>
                     `;
                     tbody.appendChild(tr);
@@ -628,10 +635,35 @@
 
                 table.appendChild(tbody);
                 dataTableContainer.appendChild(table);
+                toggleTableLock(true); // Ensure table is locked by default
+            }
+
+            function toggleTableLock(forceLock) {
+                 const table = document.getElementById('main-data-table');
+                if (!table) return;
+
+                isTableLocked = (typeof forceLock === 'boolean') ? forceLock : !isTableLocked;
+                
+                const cells = table.querySelectorAll('.table-cell-editable');
+                cells.forEach(cell => {
+                    cell.setAttribute('contenteditable', !isTableLocked);
+                });
+
+                if (isTableLocked) {
+                    table.classList.add('table-locked');
+                    lockUnlockBtn.innerHTML = `
+                        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
+                        Unlock to Edit`;
+                } else {
+                    table.classList.remove('table-locked');
+                    lockUnlockBtn.innerHTML = `
+                        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z"></path></svg>
+                        Lock Table`;
+                }
             }
             
             function handleTableCellEdit(e) {
-                if (e.target.isContentEditable) {
+                if (e.target.getAttribute('contenteditable') === 'true') {
                     const td = e.target;
                     const tr = td.closest('tr');
                     const index = tr.dataset.index;
@@ -813,6 +845,7 @@
             sizeFilter.addEventListener('change', updateContent);
             dataTableContainer.addEventListener('blur', handleTableCellEdit, true);
             downloadCsvButton.addEventListener('click', downloadCSV);
+            lockUnlockBtn.addEventListener('click', () => toggleTableLock());
 
             populateFilters();
             populateReferences();
